@@ -13,7 +13,7 @@
    # -*- coding: utf-8 -*-
    from flask import Flask
    app = Flask(__name__)
-   
+
    @app.route("/")
    def hello():
        return "Hello World!"
@@ -43,7 +43,7 @@
    # -*- coding: utf-8 -*-
    from flask import Flask, render_template
    app = Flask(__name__)
-   
+
    @app.route("/")
    def hello():
        return render_template("index.html")
@@ -115,7 +115,7 @@
    @app.route('/hello/<string:name>')
    def hello(name):
        return render_template("index.html", name=name)
-   
+
    @app.route('/cube/<int:num>')
    def cube(num):
        return render_template("cube.html", cube=num*num)
@@ -137,10 +137,10 @@
    ```
    # ubuntu에 postgresql 설치하기
    $ sudo apt-get install postgresql postgresql-contrib libpq-dev
-   
+
    # python(flask)에서 사용할 수 있도록 도와주는 애들
    $ sudo pip3 install psycopg2 psycopg2-binary 
-   
+
    # flask에서 import 해서 쓸 것들
    $ sudo pip3 install Flask-SQLAlchemy Flask-Migrate
    ```
@@ -237,7 +237,7 @@ from flask_migrate import Migrate
 
 ### CRUD
 
-1. Create
+1. Create (**route 2개 필요**)
 
    ```html
    <!-- index.html -->
@@ -269,6 +269,8 @@ from flask_migrate import Migrate
        post = Post(title=title, content=content)
        db.session.add(post)
        db.session.commit()
+       # INSERT INTO posts (title, content)
+       # VALUES ('1번글', '1번내용');
        return render_template("create.html", post=post)
    ```
 
@@ -280,12 +282,111 @@ from flask_migrate import Migrate
    {{post.created_at}}
    ```
 
-2. R
+2. Index
 
-3. D
+   ```python
+   # app.rb
+   @app.route("/")
+   def index():
+       posts = Post.query.order_by(Post.id.desc()).all()
+       # SELECT * FROM posts;
+       # SELECT * FROM posts ORDER BY id DESC;
+       return render_template("index.html", posts=posts)
+   ```
 
-4. U
+   ```html
+   <!--index.html-->
+       {% for post in posts %}
+         <th scope="row">{{post.id}}</p>
+         <p>{{post.title}}</p>
+         <p>{{post.content}}</p>
+         <p>{{post.created_at.strftime("%Y년 %m월 %d일 %H:%M")}}</p>
+         <p><a href="/posts/{{post.id}}">글 보기</a></p>
+       {% endfor %}
+   ```
 
+3. R
+
+   ```python
+   # app.rb
+   @app.route("/posts/<int:id>")
+   def read(id):
+       post = Post.query.get(id)
+       # SELECT * FROM posts WHERE id=1;
+       return render_template("read.html", post=post)
+   ```
+
+   ```Html
+   <!--read.html-->
+   <h1>{{post.id}}번째 글!!!</h1>
+   <p>제목 : {{post.title}}</p>
+   <p>내용 : {{post.content}}</p>
+   <p>작성시간 : {{post.created_at}}</p>
+   ```
+
+   ​
+
+4. D
+
+   ```html
+   <!-- read.html -->
+   <a href="/posts/{{post.id}}/delete">글 삭제</a>
+   ```
+
+   ```python
+   # app.py
+   @app.route("/posts/<int:id>/delete")
+   def delete(id):
+       post = Post.query.get(id)
+       db.session.delete(post)
+       db.session.commit()
+       # DELETE FROM posts WHERE id=2;
+       return redirect('/')
+   ```
+
+   ​
+
+5. U (**route 2개 필요**)
+
+   ```html
+   <!-- read.html -->
+   <a href="/posts/{{post.id}}/edit">글 수정</a>
+   ```
+
+   ```python
+   # app.py
+   @app.route("/posts/<int:id>/edit")
+   def edit(id):
+       post = Post.query.get(id)
+       return render_template("edit.html", post=post)
+   ```
+
+   ```html
+   <!-- edit.html -->
+   {% extends "layout.html" %}
+   {% block body %}
+   <form action="/posts/{{post.id}}/update" method="POST">
+       제목 : <input type="text" name="title" value="{{post.title}}"><br>
+       내용 : <textarea name="content">{{post.content}}</textarea><br>
+       <input type="submit" value="뿅!">
+   </form>
+   {% endblock %}
+   ```
+
+   ```python
+   # app.py
+   @app.route("/posts/<int:id>/update", methods=["POST"])
+   def update(id):
+       post = Post.query.get(id)
+       post.title = request.form.get("title")
+       post.content = request.form.get("content")
+       db.session.commit()
+       # UPDATE posts SET title = "hihi"
+       # WHERE id = 2;
+       return redirect("/posts/{}".format(post.id))
+   ```
+
+   ​
 
 
 ### 1:N Database Association(Relation)
@@ -297,7 +398,7 @@ from flask_migrate import Migrate
        #...
        comments = db.relationship('Comment', backref='post')
    	#..
-   
+
    def Comment(db.Model):
        # ..
        post_id = db.Column(db.Integer, db.ForeignKey('posts.id'), nullable=False)
@@ -317,18 +418,47 @@ from flask_migrate import Migrate
        return render_template()
    ```
 
-   3. 활용 예시
+3. 활용 예시
 
-      ```
-      $ flask shell 
-      >> from app import *
-      >> comment = Comment.query.first
-      >> comment.post
-      >> post = Post.query.get(6)
-      >> post.comments
-      
-      ```
+  ```
+  $ flask shell 
+  >> from app import *
+  >> comment = Comment.query.first
+  >> comment.post
+  >> post = Post.query.get(6)
+  >> post.comments
 
-   4. 
+  ```
 
+  ​
+
+
+### 기타 query 문
+
+```python
+Post.query.filter_by(title="1").count()
+# SELECT COUNT(*) FROM posts
+# WHERE title = '1';
+
+Post.query.filter_by(title="1").all()
+# SELECT * FROM posts
+# WHERE title = '1';
+
+Post.query.filter_by(title="1").first()
+# SELECT * FROM posts
+# WHERE title = '1' LIMIT 1;
+
+Post.query.filter(Post.title != "1").all()
+# SELECT * FROM posts
+# WHERE title != '1';
+
+Post.query.filter(Post.title.like("%1%")).all()
+# SELECT * FROM posts
+# WHERE title LIKE '%1%'; 
+
+from sqlarchemy import and_, or_
+Post.query.filter(and_(Post.title == "1", Post.content == "1"))
+# SELECT * FROM posts
+# WHERE title ="1" AND content="1"
+```
 
